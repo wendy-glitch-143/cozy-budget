@@ -5,7 +5,7 @@ defineProps<{
   title: string
   items: BudgetItem[]
   emptyMessage: string
-  kind: 'income' | 'expense'
+  kind: 'income' | 'expense' | 'savings'
   currency: Currency
 }>()
 
@@ -22,7 +22,11 @@ defineEmits<{
       <li v-for="item in items" :key="item.id" class="item-row">
         <div class="item-copy">
           <span class="item-name">{{ item.name }}</span>
-          <span v-if="item.categoryName" class="item-category">{{ item.categoryName }}</span>
+          <span v-if="item.categoryName || item.goalName" class="item-category">
+            <template v-if="item.categoryName">{{ item.categoryName }}</template>
+            <template v-if="item.categoryName && item.goalName"> · </template>
+            <template v-if="item.goalName">Goal: {{ item.goalName }}</template>
+          </span>
         </div>
         <span class="item-amount">{{ formatMoney(item.amount, currency) }}</span>
         <button
@@ -61,6 +65,10 @@ h2 {
   color: var(--blush-deep);
 }
 
+.savings h2 {
+  color: color-mix(in srgb, var(--mint-deep) 55%, var(--blush-deep));
+}
+
 .item-list {
   list-style: none;
   margin: 0;
@@ -87,6 +95,10 @@ h2 {
 
 .expense .item-row {
   border-color: color-mix(in srgb, var(--blush) 45%, transparent);
+}
+
+.savings .item-row {
+  border-color: color-mix(in srgb, var(--mint) 35%, var(--blush));
 }
 
 .item-copy {

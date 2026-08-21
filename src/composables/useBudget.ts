@@ -1,7 +1,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 export type Period = 'monthly' | 'h1' | 'h2'
-export type Kind = 'income' | 'expense'
+export type Kind = 'income' | 'expense' | 'savings'
 export type Currency = 'usd' | 'php'
 export type Theme = 'cozy' | 'ocean' | 'meadow' | 'dusk'
 
@@ -18,6 +18,14 @@ export interface Category {
   kind: Kind
 }
 
+export interface SavingsGoal {
+  id: string
+  name: string
+  targetAmount: number
+  savedAmount: number
+  progress: number
+}
+
 export interface BudgetItem {
   id: string
   name: string
@@ -27,10 +35,13 @@ export interface BudgetItem {
   monthKey: string
   categoryId: string | null
   categoryName: string | null
+  goalId: string | null
+  goalName: string | null
 }
 
 const items = ref<BudgetItem[]>([])
 const categories = ref<Category[]>([])
+const goals = ref<SavingsGoal[]>([])
 const months = ref<string[]>([])
 const currency = ref<Currency>('usd')
 const theme = ref<Theme>('cozy')
@@ -94,6 +105,12 @@ async function fetchCategories() {
   categories.value = (await res.json()) as Category[]
 }
 
+async function fetchGoals() {
+  const res = await fetch('/api/goals')
+  if (!res.ok) throw new Error('Could not load goals.')
+  goals.value = (await res.json()) as SavingsGoal[]
+}
+
 async function fetchItems() {
   const res = await fetch(`/api/items?month=${encodeURIComponent(activeMonth.value)}`)
   if (!res.ok) throw new Error('Could not load budget items.')
@@ -105,7 +122,7 @@ async function bootstrap() {
   error.value = ''
   try {
     await fetchSettings()
-    await Promise.all([fetchMonths(), fetchCategories(), fetchItems()])
+    await Promise.all([fetchMonths(), fetchCategories(), fetchGoals(), fetchItems()])
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Could not load budget.'
     items.value = []
@@ -131,12 +148,20 @@ export function useBudget() {
     filteredItems.value.filter((item) => item.kind === 'expense'),
   )
 
+  const savingsItems = computed(() =>
+    filteredItems.value.filter((item) => item.kind === 'savings'),
+  )
+
   const incomeCategories = computed(() =>
     categories.value.filter((category) => category.kind === 'income'),
   )
 
   const expenseCategories = computed(() =>
     categories.value.filter((category) => category.kind === 'expense'),
+  )
+
+  const savingsCategories = computed(() =>
+    categories.value.filter((category) => category.kind === 'savings'),
   )
 
   const totalIncome = computed(() =>
@@ -147,7 +172,13 @@ export function useBudget() {
     expenseItems.value.reduce((sum, item) => sum + item.amount, 0),
   )
 
-  const balance = computed(() => totalIncome.value - totalExpenses.value)
+  const totalSavings = computed(() =>
+    savingsItems.value.reduce((sum, item) => sum + item.amount, 0),
+  )
+
+  const balance = computed(
+    () => totalIncome.value - totalExpenses.value - totalSavings.value,
+  )
 
   async function saveSettings(patch: {
     currency?: Currency
@@ -299,11 +330,63 @@ export function useBudget() {
     }
   }
 
+  async function addGoal(name: string, targetAmount: number) {
+    const trimmed = name.trim()
+    if (!trimmed || !Number.isFinite(targetAmount) || targetAmount <= 0) return
+
+    saving.value = true
+    error.value = ''
+    try {
+      const res = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          targetAmount: Math.round(targetAmount * 100) / 100,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || 'Could not add goal.')
+      }
+      const created = (await res.json()) as SavingsGoal
+      goals.value = [...goals.value, created]
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Could not add goal.'
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function removeGoal(id: string) {
+    saving.value = true
+    error.value = ''
+    const previousGoals = goals.value
+    const previousItems = items.value
+    goals.value = goals.value.filter((goal) => goal.id !== id)
+    items.value = items.value.map((item) =>
+      item.goalId === id ? { ...item, goalId: null, goalName: null } : item,
+    )
+    try {
+      const res = await fetch(`/api/goals/${id}`, { method: 'DELETE' })
+      if (!res.ok && res.status !== 404) {
+        throw new Error('Could not remove goal.')
+      }
+    } catch (err) {
+      goals.value = previousGoals
+      items.value = previousItems
+      error.value = err instanceof Error ? err.message : 'Could not remove goal.'
+    } finally {
+      saving.value = false
+    }
+  }
+
   async function addItem(
     name: string,
     amount: number,
     kind: Kind,
     categoryId: string | null,
+    goalId: string | null = null,
   ) {
     const trimmed = name.trim()
     if (!trimmed || !Number.isFinite(amount) || amount <= 0) return
@@ -321,6 +404,7 @@ export function useBudget() {
           period: activePeriod.value,
           monthKey: activeMonth.value,
           categoryId,
+          goalId: kind === 'savings' ? goalId : null,
         }),
       })
       if (!res.ok) {
@@ -329,6 +413,9 @@ export function useBudget() {
       }
       const created = (await res.json()) as BudgetItem
       items.value = [...items.value, created]
+      if (kind === 'savings') {
+        await fetchGoals()
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Could not save item.'
     } finally {
@@ -340,11 +427,15 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     const previous = items.value
+    const removed = items.value.find((item) => item.id === id)
     items.value = items.value.filter((item) => item.id !== id)
     try {
       const res = await fetch(`/api/items/${id}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove item.')
+      }
+      if (removed?.kind === 'savings') {
+        await fetchGoals()
       }
     } catch (err) {
       items.value = previous
@@ -369,13 +460,17 @@ export function useBudget() {
     currency,
     theme,
     categories,
+    goals,
     incomeCategories,
     expenseCategories,
+    savingsCategories,
     filteredItems,
     incomeItems,
     expenseItems,
+    savingsItems,
     totalIncome,
     totalExpenses,
+    totalSavings,
     balance,
     loading,
     saving,
@@ -384,6 +479,8 @@ export function useBudget() {
     removeItem,
     addCategory,
     removeCategory,
+    addGoal,
+    removeGoal,
     categoriesForKind,
     setPeriod,
     setCurrency,

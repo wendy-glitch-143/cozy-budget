@@ -18,6 +18,7 @@ export interface YearlyRow {
   monthKey: string
   income: number
   expenses: number
+  savings: number
   balance: number
 }
 
@@ -29,7 +30,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 
 const year = ref(props.defaultYear)
 const rows = ref<YearlyRow[]>([])
-const totals = ref({ income: 0, expenses: 0, balance: 0 })
+const totals = ref({ income: 0, expenses: 0, savings: 0, balance: 0 })
 const loading = ref(false)
 const error = ref('')
 const generated = ref(false)
@@ -54,6 +55,10 @@ const detailExpenses = computed(() =>
   detailItems.value.filter((item) => item.kind === 'expense'),
 )
 
+const detailSavings = computed(() =>
+  detailItems.value.filter((item) => item.kind === 'savings'),
+)
+
 async function generate() {
   loading.value = true
   error.value = ''
@@ -67,7 +72,12 @@ async function generate() {
     }
     const data = (await res.json()) as {
       rows: YearlyRow[]
-      totals: { income: number; expenses: number; balance: number }
+      totals: {
+        income: number
+        expenses: number
+        savings: number
+        balance: number
+      }
     }
     rows.value = data.rows
     totals.value = data.totals
@@ -139,7 +149,8 @@ async function toggleDetails(monthKey: string) {
             <th>Month</th>
             <th>Income</th>
             <th>Expenses</th>
-            <th>Balance</th>
+            <th>Savings</th>
+            <th>Remaining</th>
             <th>Details</th>
           </tr>
         </thead>
@@ -149,6 +160,7 @@ async function toggleDetails(monthKey: string) {
               <td>{{ formatMonthLabel(row.monthKey) }}</td>
               <td class="income">{{ formatMoney(row.income, currency) }}</td>
               <td class="expense">{{ formatMoney(row.expenses, currency) }}</td>
+              <td class="savings">{{ formatMoney(row.savings, currency) }}</td>
               <td :class="{ negative: row.balance < 0 }">
                 {{ formatMoney(row.balance, currency) }}
               </td>
@@ -163,7 +175,7 @@ async function toggleDetails(monthKey: string) {
               </td>
             </tr>
             <tr v-if="detailMonth === row.monthKey" class="detail-row">
-              <td colspan="5">
+              <td colspan="6">
                 <div class="detail-panel">
                   <p v-if="detailLoading" class="detail-status">Loading details…</p>
                   <p v-else-if="detailError" class="error">{{ detailError }}</p>
@@ -211,6 +223,29 @@ async function toggleDetails(monthKey: string) {
                       </ul>
                       <p v-else class="detail-status">No expense items.</p>
                     </div>
+                    <div class="detail-block savings">
+                      <h3>Savings</h3>
+                      <ul v-if="detailSavings.length">
+                        <li v-for="item in detailSavings" :key="item.id">
+                          <div class="item-main">
+                            <span class="item-name">{{ item.name }}</span>
+                            <span class="item-meta">
+                              {{ PERIOD_LABELS[item.period] }}
+                              <template v-if="item.categoryName">
+                                · {{ item.categoryName }}
+                              </template>
+                              <template v-if="item.goalName">
+                                · Goal: {{ item.goalName }}
+                              </template>
+                            </span>
+                          </div>
+                          <span class="item-amount">
+                            {{ formatMoney(item.amount, currency) }}
+                          </span>
+                        </li>
+                      </ul>
+                      <p v-else class="detail-status">No savings items.</p>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -222,6 +257,7 @@ async function toggleDetails(monthKey: string) {
             <th>Year total</th>
             <th class="income">{{ formatMoney(totals.income, currency) }}</th>
             <th class="expense">{{ formatMoney(totals.expenses, currency) }}</th>
+            <th class="savings">{{ formatMoney(totals.savings, currency) }}</th>
             <th :class="{ negative: totals.balance < 0 }">
               {{ formatMoney(totals.balance, currency) }}
             </th>
@@ -378,7 +414,7 @@ th.negative {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 1rem;
 }
 
@@ -394,6 +430,16 @@ th.negative {
 
 .detail-block.expense h3 {
   color: var(--blush-deep);
+}
+
+.detail-block.savings h3 {
+  color: color-mix(in srgb, var(--mint-deep) 55%, var(--blush-deep));
+}
+
+td.savings,
+th.savings {
+  color: color-mix(in srgb, var(--mint-deep) 55%, var(--blush-deep));
+  font-weight: 700;
 }
 
 .detail-block ul {

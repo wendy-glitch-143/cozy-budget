@@ -15,12 +15,16 @@ const {
   currency,
   theme,
   categories,
+  goals,
   incomeCategories,
   expenseCategories,
+  savingsCategories,
   incomeItems,
   expenseItems,
+  savingsItems,
   totalIncome,
   totalExpenses,
+  totalSavings,
   balance,
   loading,
   error,
@@ -28,6 +32,8 @@ const {
   removeItem,
   addCategory,
   removeCategory,
+  addGoal,
+  removeGoal,
   setPeriod,
   setCurrency,
   setTheme,
@@ -64,14 +70,18 @@ const defaultReportYear = computed(() => {
           :theme="theme"
           :income-categories="incomeCategories"
           :expense-categories="expenseCategories"
+          :savings-categories="savingsCategories"
+          :goals="goals"
           @update:currency="setCurrency"
           @update:theme="setTheme"
           @add-month="addMonth"
           @add-category="addCategory"
           @remove-category="removeCategory"
+          @add-goal="addGoal"
+          @remove-goal="removeGoal"
         />
       </div>
-      <p class="tagline">Track monthly &amp; half-month income and expenses.</p>
+      <p class="tagline">Track income, expenses, and savings goals.</p>
     </header>
 
     <p v-if="error" class="status error" role="alert">{{ error }}</p>
@@ -105,11 +115,12 @@ const defaultReportYear = computed(() => {
     <SummaryCards
       :income="totalIncome"
       :expenses="totalExpenses"
+      :savings="totalSavings"
       :balance="balance"
       :currency="currency"
     />
 
-    <AddItemForm :categories="categories" @add="addItem" />
+    <AddItemForm :categories="categories" :goals="goals" @add="addItem" />
 
     <ItemList
       title="Income"
@@ -126,6 +137,15 @@ const defaultReportYear = computed(() => {
       :items="expenseItems"
       :currency="currency"
       empty-message="No expenses yet — you’re living lightly."
+      @remove="removeItem"
+    />
+
+    <ItemList
+      title="Savings"
+      kind="savings"
+      :items="savingsItems"
+      :currency="currency"
+      empty-message="No savings yet — set some money aside."
       @remove="removeItem"
     />
 

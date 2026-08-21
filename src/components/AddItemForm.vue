@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Category, Kind } from '../composables/useBudget'
+import type { Category, Kind, SavingsGoal } from '../composables/useBudget'
 
 const props = defineProps<{
   categories: Category[]
+  goals: SavingsGoal[]
 }>()
 
 const emit = defineEmits<{
-  add: [name: string, amount: number, kind: Kind, categoryId: string | null]
+  add: [
+    name: string,
+    amount: number,
+    kind: Kind,
+    categoryId: string | null,
+    goalId: string | null,
+  ]
 }>()
 
 const name = ref('')
 const amount = ref('')
 const kind = ref<Kind>('expense')
 const categoryId = ref('')
+const goalId = ref('')
 
 const matchingCategories = computed(() =>
   props.categories.filter((category) => category.kind === kind.value),
@@ -21,6 +29,7 @@ const matchingCategories = computed(() =>
 
 watch(kind, () => {
   categoryId.value = ''
+  goalId.value = ''
 })
 
 watch(matchingCategories, (list) => {
@@ -31,10 +40,18 @@ watch(matchingCategories, (list) => {
 
 function onSubmit() {
   const parsed = Number(amount.value)
-  emit('add', name.value, parsed, kind.value, categoryId.value || null)
+  emit(
+    'add',
+    name.value,
+    parsed,
+    kind.value,
+    categoryId.value || null,
+    kind.value === 'savings' ? goalId.value || null : null,
+  )
   name.value = ''
   amount.value = ''
   categoryId.value = ''
+  goalId.value = ''
 }
 </script>
 
@@ -55,9 +72,16 @@ function onSubmit() {
       >
         Expense
       </button>
+      <button
+        type="button"
+        :class="{ active: kind === 'savings' }"
+        @click="kind = 'savings'"
+      >
+        Savings
+      </button>
     </div>
 
-    <div class="fields">
+    <div class="fields" :class="{ withGoal: kind === 'savings' }">
       <label class="field">
         <span>Name</span>
         <input
@@ -81,6 +105,16 @@ function onSubmit() {
             :value="category.id"
           >
             {{ category.name }}
+          </option>
+        </select>
+      </label>
+
+      <label v-if="kind === 'savings'" class="field goal">
+        <span>Goal</span>
+        <select v-model="goalId">
+          <option value="">No goal</option>
+          <option v-for="goal in goals" :key="goal.id" :value="goal.id">
+            {{ goal.name }}
           </option>
         </select>
       </label>
@@ -114,6 +148,7 @@ function onSubmit() {
 .kind-toggle {
   display: inline-flex;
   align-self: flex-start;
+  flex-wrap: wrap;
   padding: 0.2rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--mint) 18%, white);
@@ -123,7 +158,7 @@ function onSubmit() {
 .kind-toggle button {
   border: none;
   background: transparent;
-  padding: 0.45rem 0.95rem;
+  padding: 0.45rem 0.85rem;
   border-radius: 999px;
   font-family: var(--font-body);
   font-size: 0.88rem;
@@ -144,6 +179,10 @@ function onSubmit() {
   grid-template-columns: 1.2fr 1fr 7rem auto;
   gap: 0.65rem;
   align-items: end;
+}
+
+.fields.withGoal {
+  grid-template-columns: 1fr 0.9fr 0.9fr 6.5rem auto;
 }
 
 .field {
@@ -201,8 +240,9 @@ function onSubmit() {
   transform: translateY(0);
 }
 
-@media (max-width: 700px) {
-  .fields {
+@media (max-width: 800px) {
+  .fields,
+  .fields.withGoal {
     grid-template-columns: 1fr 1fr;
   }
 

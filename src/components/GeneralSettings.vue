@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import CategoryManager from './CategoryManager.vue'
+import GoalsManager from './GoalsManager.vue'
 import {
   THEME_OPTIONS,
   type Category,
   type Currency,
   type Kind,
+  type SavingsGoal,
   type Theme,
 } from '../composables/useBudget'
 
@@ -14,6 +16,8 @@ defineProps<{
   theme: Theme
   incomeCategories: Category[]
   expenseCategories: Category[]
+  savingsCategories: Category[]
+  goals: SavingsGoal[]
 }>()
 
 const emit = defineEmits<{
@@ -22,6 +26,8 @@ const emit = defineEmits<{
   'add-month': [string]
   'add-category': [name: string, kind: Kind]
   'remove-category': [id: string]
+  'add-goal': [name: string, targetAmount: number]
+  'remove-goal': [id: string]
 }>()
 
 const open = ref(false)
@@ -144,8 +150,16 @@ defineExpose({ openSettings })
             <CategoryManager
               :income-categories="incomeCategories"
               :expense-categories="expenseCategories"
+              :savings-categories="savingsCategories"
               @add="(name, kind) => emit('add-category', name, kind)"
               @remove="(id) => emit('remove-category', id)"
+            />
+
+            <GoalsManager
+              :goals="goals"
+              :currency="currency"
+              @add="(name, target) => emit('add-goal', name, target)"
+              @remove="(id) => emit('remove-goal', id)"
             />
           </div>
         </div>

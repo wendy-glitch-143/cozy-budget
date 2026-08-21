@@ -5,6 +5,7 @@ import type { Category, Kind } from '../composables/useBudget'
 defineProps<{
   incomeCategories: Category[]
   expenseCategories: Category[]
+  savingsCategories: Category[]
 }>()
 
 const emit = defineEmits<{
@@ -24,7 +25,7 @@ function onSubmit() {
 <template>
   <section class="category-panel" aria-label="Categories">
     <h2>Categories</h2>
-    <p class="hint">Each category is tagged as income or expense.</p>
+    <p class="hint">Each category is tagged as income, expense, or savings.</p>
 
     <form class="category-form" @submit.prevent="onSubmit">
       <div class="kind-toggle" role="group" aria-label="Category type">
@@ -42,6 +43,13 @@ function onSubmit() {
         >
           Expense
         </button>
+        <button
+          type="button"
+          :class="{ active: kind === 'savings' }"
+          @click="kind = 'savings'"
+        >
+          Savings
+        </button>
       </div>
 
       <div class="fields">
@@ -51,7 +59,7 @@ function onSubmit() {
             v-model="name"
             type="text"
             maxlength="60"
-            placeholder="Salary, Food, Rent…"
+            placeholder="Salary, Food, Emergency…"
             required
             autocomplete="off"
           />
@@ -96,6 +104,24 @@ function onSubmit() {
         </ul>
         <p v-else class="empty">No expense categories yet.</p>
       </div>
+
+      <div class="list-block savings">
+        <h3>Savings</h3>
+        <ul v-if="savingsCategories.length">
+          <li v-for="category in savingsCategories" :key="category.id">
+            <span>{{ category.name }}</span>
+            <button
+              type="button"
+              class="remove-btn"
+              :aria-label="`Remove ${category.name}`"
+              @click="emit('remove', category.id)"
+            >
+              ×
+            </button>
+          </li>
+        </ul>
+        <p v-else class="empty">No savings categories yet.</p>
+      </div>
     </div>
   </section>
 </template>
@@ -130,6 +156,7 @@ h2 {
 
 .kind-toggle {
   display: inline-flex;
+  flex-wrap: wrap;
   align-self: flex-start;
   padding: 0.2rem;
   border-radius: 999px;
@@ -140,7 +167,7 @@ h2 {
 .kind-toggle button {
   border: none;
   background: transparent;
-  padding: 0.45rem 0.95rem;
+  padding: 0.45rem 0.85rem;
   border-radius: 999px;
   font-family: var(--font-body);
   font-size: 0.88rem;
@@ -199,7 +226,7 @@ h2 {
 
 .lists {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 1rem;
 }
 
@@ -215,6 +242,10 @@ h2 {
 
 .list-block.expense h3 {
   color: var(--blush-deep);
+}
+
+.list-block.savings h3 {
+  color: color-mix(in srgb, var(--mint-deep) 55%, var(--blush-deep));
 }
 
 ul {
@@ -256,7 +287,7 @@ li {
   color: var(--ink-soft);
 }
 
-@media (max-width: 560px) {
+@media (max-width: 720px) {
   .fields,
   .lists {
     grid-template-columns: 1fr;

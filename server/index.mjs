@@ -6,7 +6,7 @@ import mysql from 'mysql2/promise'
 const PORT = Number(process.env.PORT || 3001)
 const CURRENCIES = new Set(['usd', 'php'])
 const THEMES = new Set(['cozy', 'ocean', 'meadow', 'dusk'])
-const KINDS = new Set(['income', 'expense'])
+const KINDS = new Set(['income', 'expense', 'savings'])
 const PERIODS = new Set(['monthly', 'h1', 'h2'])
 
 const DEFAULT_CATEGORIES = [
@@ -17,6 +17,8 @@ const DEFAULT_CATEGORIES = [
   { name: 'Rent', kind: 'expense' },
   { name: 'Transport', kind: 'expense' },
   { name: 'Utilities', kind: 'expense' },
+  { name: 'Emergency', kind: 'savings' },
+  { name: 'Vacation', kind: 'savings' },
 ]
 
 const pool = mysql.createPool({
@@ -57,6 +59,24 @@ function mapRow(row) {
     monthKey: row.month_key,
     categoryId: row.category_id || null,
     categoryName: row.category_name || null,
+    goalId: row.goal_id || null,
+    goalName: row.goal_name || null,
+  }
+}
+
+function mapGoal(row) {
+  const targetAmount = Number(row.target_amount) || 0
+  const savedAmount = Number(row.saved_amount) || 0
+  const progress =
+    targetAmount > 0
+      ? Math.min(100, Math.round((savedAmount / targetAmount) * 1000) / 10)
+      : 0
+  return {
+    id: row.id,
+    name: row.name,
+    targetAmount,
+    savedAmount,
+    progress,
   }
 }
 
@@ -67,6 +87,21 @@ async function tableHasColumn(table, column) {
     [table, column],
   )
   return rows.length > 0
+}
+
+async function ensureEnumIncludesSavings(table, column) {
+  const [rows] = await pool.query(
+    `SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column],
+  )
+  if (!rows.length) return
+  const columnType = String(rows[0].COLUMN_TYPE || '')
+  if (columnType.includes("'savings'")) return
+  await pool.query(
+    `ALTER TABLE \`${table}\`
+     MODIFY COLUMN \`${column}\` ENUM('income', 'expense', 'savings') NOT NULL`,
+  )
 }
 
 async function ensureSchema() {
@@ -92,9 +127,18 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS categories (
       id CHAR(36) PRIMARY KEY,
       name VARCHAR(60) NOT NULL,
-      kind ENUM('income', 'expense') NOT NULL,
+      kind ENUM('income', 'expense', 'savings') NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uq_categories_name_kind (name, kind)
+    )
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS savings_goals (
+      id CHAR(36) PRIMARY KEY,
+      name VARCHAR(80) NOT NULL,
+      target_amount DECIMAL(12, 2) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `)
 
@@ -103,10 +147,11 @@ async function ensureSchema() {
       id CHAR(36) PRIMARY KEY,
       name VARCHAR(80) NOT NULL,
       amount DECIMAL(12, 2) NOT NULL,
-      kind ENUM('income', 'expense') NOT NULL,
+      kind ENUM('income', 'expense', 'savings') NOT NULL,
       period ENUM('monthly', 'h1', 'h2') NOT NULL,
       month_key CHAR(7) NOT NULL,
       category_id CHAR(36) NULL,
+      goal_id CHAR(36) NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_budget_items_month (month_key)
     )
@@ -127,12 +172,22 @@ async function ensureSchema() {
     )
   }
 
+  if (!(await tableHasColumn('budget_items', 'goal_id'))) {
+    await pool.query(
+      `ALTER TABLE budget_items
+       ADD COLUMN goal_id CHAR(36) NULL`,
+    )
+  }
+
   if (!(await tableHasColumn('app_settings', 'theme'))) {
     await pool.query(
       `ALTER TABLE app_settings
        ADD COLUMN theme VARCHAR(20) NOT NULL DEFAULT 'cozy'`,
     )
   }
+
+  await ensureEnumIncludesSavings('categories', 'kind')
+  await ensureEnumIncludesSavings('budget_items', 'kind')
 
   await pool.query(
     'INSERT IGNORE INTO budget_months (month_key) VALUES (?)',
@@ -150,6 +205,13 @@ async function ensureSchema() {
     for (const category of DEFAULT_CATEGORIES) {
       await pool.query(
         'INSERT INTO categories (id, name, kind) VALUES (?, ?, ?)',
+        [crypto.randomUUID(), category.name, category.kind],
+      )
+    }
+  } else {
+    for (const category of DEFAULT_CATEGORIES.filter((c) => c.kind === 'savings')) {
+      await pool.query(
+        'INSERT IGNORE INTO categories (id, name, kind) VALUES (?, ?, ?)',
         [crypto.randomUUID(), category.name, category.kind],
       )
     }
@@ -177,6 +239,27 @@ async function getCategory(id) {
     [id],
   )
   return rows[0] || null
+}
+
+async function getGoal(id) {
+  const [rows] = await pool.query(
+    'SELECT id, name, target_amount FROM savings_goals WHERE id = ?',
+    [id],
+  )
+  return rows[0] || null
+}
+
+async function listGoals() {
+  const [rows] = await pool.query(
+    `SELECT g.id, g.name, g.target_amount,
+            COALESCE(SUM(i.amount), 0) AS saved_amount
+     FROM savings_goals g
+     LEFT JOIN budget_items i
+       ON i.goal_id = g.id AND i.kind = 'savings'
+     GROUP BY g.id, g.name, g.target_amount
+     ORDER BY g.created_at ASC`,
+  )
+  return rows.map(mapGoal)
 }
 
 const app = express()
@@ -277,7 +360,7 @@ app.get('/api/categories', async (req, res) => {
   try {
     const kind = req.query.kind
     if (kind && !KINDS.has(kind)) {
-      return res.status(400).json({ error: 'kind must be income or expense.' })
+      return res.status(400).json({ error: 'kind must be income, expense, or savings.' })
     }
 
     const [rows] = kind
@@ -304,7 +387,7 @@ app.post('/api/categories', async (req, res) => {
       return res.status(400).json({ error: 'Name is required (max 60 chars).' })
     }
     if (!KINDS.has(kind)) {
-      return res.status(400).json({ error: 'Category must be income or expense.' })
+      return res.status(400).json({ error: 'Category must be income, expense, or savings.' })
     }
 
     const id = crypto.randomUUID()
@@ -344,6 +427,63 @@ app.delete('/api/categories/:id', async (req, res) => {
   }
 })
 
+app.get('/api/goals', async (_req, res) => {
+  try {
+    res.json(await listGoals())
+  } catch (error) {
+    res.status(500).json({ error: String(error.message || error) })
+  }
+})
+
+app.post('/api/goals', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim()
+    const targetAmount = Number(req.body?.targetAmount)
+
+    if (!name || name.length > 80) {
+      return res.status(400).json({ error: 'Name is required (max 80 chars).' })
+    }
+    if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
+      return res.status(400).json({ error: 'Target must be a positive number.' })
+    }
+
+    const id = crypto.randomUUID()
+    const rounded = Math.round(targetAmount * 100) / 100
+    await pool.query(
+      'INSERT INTO savings_goals (id, name, target_amount) VALUES (?, ?, ?)',
+      [id, name, rounded],
+    )
+
+    res.status(201).json({
+      id,
+      name,
+      targetAmount: rounded,
+      savedAmount: 0,
+      progress: 0,
+    })
+  } catch (error) {
+    res.status(500).json({ error: String(error.message || error) })
+  }
+})
+
+app.delete('/api/goals/:id', async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE budget_items SET goal_id = NULL WHERE goal_id = ?',
+      [req.params.id],
+    )
+    const [result] = await pool.query('DELETE FROM savings_goals WHERE id = ?', [
+      req.params.id,
+    ])
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Goal not found.' })
+    }
+    res.status(204).end()
+  } catch (error) {
+    res.status(500).json({ error: String(error.message || error) })
+  }
+})
+
 app.get('/api/report/yearly', async (req, res) => {
   try {
     const year = Number(req.query.year)
@@ -362,7 +502,8 @@ app.get('/api/report/yearly', async (req, res) => {
       `SELECT
          month_key,
          SUM(CASE WHEN kind = 'income' THEN amount ELSE 0 END) AS income,
-         SUM(CASE WHEN kind = 'expense' THEN amount ELSE 0 END) AS expenses
+         SUM(CASE WHEN kind = 'expense' THEN amount ELSE 0 END) AS expenses,
+         SUM(CASE WHEN kind = 'savings' THEN amount ELSE 0 END) AS savings
        FROM budget_items
        WHERE month_key LIKE ?
        GROUP BY month_key
@@ -376,6 +517,7 @@ app.get('/api/report/yearly', async (req, res) => {
         {
           income: Number(row.income) || 0,
           expenses: Number(row.expenses) || 0,
+          savings: Number(row.savings) || 0,
         },
       ]),
     )
@@ -388,14 +530,20 @@ app.get('/api/report/yearly', async (req, res) => {
     ].sort()
 
     const rows = monthKeys.map((monthKey) => {
-      const totals = byMonth.get(monthKey) || { income: 0, expenses: 0 }
+      const totals = byMonth.get(monthKey) || {
+        income: 0,
+        expenses: 0,
+        savings: 0,
+      }
       const income = Math.round(totals.income * 100) / 100
       const expenses = Math.round(totals.expenses * 100) / 100
+      const savings = Math.round(totals.savings * 100) / 100
       return {
         monthKey,
         income,
         expenses,
-        balance: Math.round((income - expenses) * 100) / 100,
+        savings,
+        balance: Math.round((income - expenses - savings) * 100) / 100,
       }
     })
 
@@ -403,9 +551,10 @@ app.get('/api/report/yearly', async (req, res) => {
       (acc, row) => ({
         income: acc.income + row.income,
         expenses: acc.expenses + row.expenses,
+        savings: acc.savings + row.savings,
         balance: acc.balance + row.balance,
       }),
-      { income: 0, expenses: 0, balance: 0 },
+      { income: 0, expenses: 0, savings: 0, balance: 0 },
     )
 
     res.json({
@@ -414,6 +563,7 @@ app.get('/api/report/yearly', async (req, res) => {
       totals: {
         income: Math.round(totals.income * 100) / 100,
         expenses: Math.round(totals.expenses * 100) / 100,
+        savings: Math.round(totals.savings * 100) / 100,
         balance: Math.round(totals.balance * 100) / 100,
       },
     })
@@ -431,9 +581,11 @@ app.get('/api/items', async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT i.id, i.name, i.amount, i.kind, i.period, i.month_key,
-              i.category_id, c.name AS category_name
+              i.category_id, c.name AS category_name,
+              i.goal_id, g.name AS goal_name
        FROM budget_items i
        LEFT JOIN categories c ON c.id = i.category_id
+       LEFT JOIN savings_goals g ON g.id = i.goal_id
        WHERE i.month_key = ?
        ORDER BY i.created_at ASC`,
       [monthKey],
@@ -452,6 +604,7 @@ app.post('/api/items', async (req, res) => {
     const kind = req.body?.kind
     const period = req.body?.period
     const categoryId = req.body?.categoryId || null
+    const goalId = req.body?.goalId || null
     const monthKey = isMonthKey(req.body?.monthKey)
       ? String(req.body.monthKey)
       : settings.activeMonth
@@ -480,6 +633,20 @@ app.post('/api/items', async (req, res) => {
       categoryName = category.name
     }
 
+    let goalName = null
+    let resolvedGoalId = null
+    if (goalId) {
+      if (kind !== 'savings') {
+        return res.status(400).json({ error: 'Only savings items can link to a goal.' })
+      }
+      const goal = await getGoal(goalId)
+      if (!goal) {
+        return res.status(400).json({ error: 'Goal not found.' })
+      }
+      resolvedGoalId = goal.id
+      goalName = goal.name
+    }
+
     await pool.query(
       'INSERT IGNORE INTO budget_months (month_key) VALUES (?)',
       [monthKey],
@@ -490,9 +657,9 @@ app.post('/api/items', async (req, res) => {
 
     await pool.query(
       `INSERT INTO budget_items
-        (id, name, amount, kind, period, month_key, category_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, name, rounded, kind, period, monthKey, categoryId],
+        (id, name, amount, kind, period, month_key, category_id, goal_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, name, rounded, kind, period, monthKey, categoryId, resolvedGoalId],
     )
 
     res.status(201).json({
@@ -504,6 +671,8 @@ app.post('/api/items', async (req, res) => {
       monthKey,
       categoryId,
       categoryName,
+      goalId: resolvedGoalId,
+      goalName,
     })
   } catch (error) {
     res.status(500).json({ error: String(error.message || error) })
@@ -526,5 +695,5 @@ app.delete('/api/items/:id', async (req, res) => {
 await ensureSchema()
 
 app.listen(PORT, () => {
-  console.log(`Personal Budget Planner API on http://127.0.0.1:${PORT}`)
+  console.log(`Cozy Budget API on http://127.0.0.1:${PORT}`)
 })
