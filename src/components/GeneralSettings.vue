@@ -86,7 +86,7 @@ defineExpose({ openSettings })
           aria-labelledby="settings-title"
         >
           <header class="modal-header">
-            <h2 id="settings-title">General settings</h2>
+            <h2 id="settings-title">General Settings</h2>
             <button
               type="button"
               class="close-btn"
@@ -99,7 +99,7 @@ defineExpose({ openSettings })
 
           <div class="settings-body">
             <div class="control-block">
-              <span class="control-label">Theme</span>
+              <span class="control-label">Themes</span>
               <div class="theme-grid" role="group" aria-label="Theme">
                 <button
                   v-for="option in THEME_OPTIONS"
@@ -138,7 +138,7 @@ defineExpose({ openSettings })
             </div>
 
             <div class="control-block">
-              <span class="control-label">Add month</span>
+              <span class="control-label">Add Month</span>
               <div class="add-month">
                 <input v-model="newMonth" type="month" aria-label="New month" />
                 <button type="button" class="add-month-btn" @click="onAddMonth">

@@ -24,7 +24,7 @@ function onSubmit() {
 
 <template>
   <section class="goals-panel" aria-label="Savings goals">
-    <h2>Savings goals</h2>
+    <h2>Savings Goals</h2>
     <p class="hint">Set targets and track progress from savings contributions.</p>
 
     <form class="goal-form" @submit.prevent="onSubmit">
@@ -79,7 +79,7 @@ function onSubmit() {
         </div>
       </li>
     </ul>
-    <p v-else class="empty">No savings goals yet.</p>
+    <p v-else class="empty">No saving goals yet.</p>
   </section>
 </template>
 
