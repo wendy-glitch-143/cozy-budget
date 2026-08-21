@@ -1,5 +1,13 @@
-# Vue 3 + TypeScript + Vite
+# Personal Budget Planner
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Simple Vue + MySQL personal budget app for monthly and semi-monthly income and expenses.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## How to run locally
+
+```bash
+cd ~/cozy-budget
+npm run db:up      # MySQL (Docker)
+npm run dev:all    # API + Vite together
+```
+
+App defaults: http://127.0.0.1:5173 · API: http://127.0.0.1:3001
