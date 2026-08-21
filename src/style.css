@@ -1,0 +1,88 @@
+:root,
+[data-theme='cozy'] {
+  --mint: #9fd8c5;
+  --mint-deep: #2f8f78;
+  --blush: #f3b6a8;
+  --blush-deep: #c96b5c;
+  --paper: #fff8f3;
+  --ink: #2d3a36;
+  --ink-soft: #5f6f69;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Nunito', 'Segoe UI', sans-serif;
+}
+
+[data-theme='ocean'] {
+  --mint: #8ecae6;
+  --mint-deep: #2a6f97;
+  --blush: #a8d5e5;
+  --blush-deep: #3d7ea6;
+  --paper: #f4f9fc;
+  --ink: #1f3340;
+  --ink-soft: #5a7382;
+}
+
+[data-theme='meadow'] {
+  --mint: #b7d4a5;
+  --mint-deep: #4f7a3c;
+  --blush: #d9c48a;
+  --blush-deep: #8a7340;
+  --paper: #f7faf3;
+  --ink: #2c3826;
+  --ink-soft: #61705a;
+}
+
+[data-theme='dusk'] {
+  --mint: #c4b7a6;
+  --mint-deep: #6d5f52;
+  --blush: #d4a5a5;
+  --blush-deep: #9a5f5f;
+  --paper: #f7f3ef;
+  --ink: #322d2a;
+  --ink-soft: #6a615c;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 90% 60% at 10% -10%, color-mix(in srgb, var(--mint) 55%, white), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 100% 0%, color-mix(in srgb, var(--blush) 50%, white), transparent 50%),
+    radial-gradient(ellipse 70% 45% at 50% 100%, color-mix(in srgb, var(--mint) 25%, white), transparent 55%),
+    linear-gradient(180deg, color-mix(in srgb, var(--paper) 70%, white) 0%, var(--paper) 45%, color-mix(in srgb, var(--paper) 85%, var(--blush)) 100%);
+  background-attachment: fixed;
+  transition: color 0.25s ease, background 0.25s ease;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 12%, transparent) 1px, transparent 0);
+  background-size: 18px 18px;
+  z-index: 0;
+}
+
+#app {
+  position: relative;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
