@@ -58,7 +58,7 @@ const defaultReportYear = computed(() => {
   <div class="page">
     <header class="hero">
       <div class="hero-top">
-        <p class="brand">Personal Budget Planner</p>
+        <p class="brand">Cozy Budget - Personal Planner</p>
         <GeneralSettings
           :currency="currency"
           :theme="theme"
