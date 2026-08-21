@@ -4,6 +4,8 @@ import GeneralSettings from './components/GeneralSettings.vue'
 import ItemList from './components/ItemList.vue'
 import MonthSwitcher from './components/MonthSwitcher.vue'
 import SummaryCards from './components/SummaryCards.vue'
+import YearlyReport from './components/YearlyReport.vue'
+import { computed } from 'vue'
 import { useBudget, type Period } from './composables/useBudget'
 
 const {
@@ -38,6 +40,18 @@ const periods: { id: Period; label: string }[] = [
   { id: 'h1', label: '1–15' },
   { id: 'h2', label: '16–end' },
 ]
+
+const reportYears = computed(() => {
+  const years = months.value
+    .map((month) => Number(month.slice(0, 4)))
+    .filter((year) => Number.isFinite(year))
+  return [...new Set(years)].sort((a, b) => b - a)
+})
+
+const defaultReportYear = computed(() => {
+  const fromActive = Number(activeMonth.value.slice(0, 4))
+  return Number.isFinite(fromActive) ? fromActive : new Date().getFullYear()
+})
 </script>
 
 <template>
@@ -113,6 +127,12 @@ const periods: { id: Period; label: string }[] = [
       :currency="currency"
       empty-message="No expenses yet — you’re living lightly."
       @remove="removeItem"
+    />
+
+    <YearlyReport
+      :currency="currency"
+      :default-year="defaultReportYear"
+      :available-years="reportYears"
     />
   </div>
 </template>

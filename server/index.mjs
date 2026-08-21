@@ -344,6 +344,84 @@ app.delete('/api/categories/:id', async (req, res) => {
   }
 })
 
+app.get('/api/report/yearly', async (req, res) => {
+  try {
+    const year = Number(req.query.year)
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      return res.status(400).json({ error: 'year must be a valid number.' })
+    }
+
+    const prefix = `${year}-`
+    const [monthRows] = await pool.query(
+      `SELECT month_key FROM budget_months
+       WHERE month_key LIKE ?
+       ORDER BY month_key ASC`,
+      [`${prefix}%`],
+    )
+    const [sumRows] = await pool.query(
+      `SELECT
+         month_key,
+         SUM(CASE WHEN kind = 'income' THEN amount ELSE 0 END) AS income,
+         SUM(CASE WHEN kind = 'expense' THEN amount ELSE 0 END) AS expenses
+       FROM budget_items
+       WHERE month_key LIKE ?
+       GROUP BY month_key
+       ORDER BY month_key ASC`,
+      [`${prefix}%`],
+    )
+
+    const byMonth = new Map(
+      sumRows.map((row) => [
+        row.month_key,
+        {
+          income: Number(row.income) || 0,
+          expenses: Number(row.expenses) || 0,
+        },
+      ]),
+    )
+
+    const monthKeys = [
+      ...new Set([
+        ...monthRows.map((row) => row.month_key),
+        ...sumRows.map((row) => row.month_key),
+      ]),
+    ].sort()
+
+    const rows = monthKeys.map((monthKey) => {
+      const totals = byMonth.get(monthKey) || { income: 0, expenses: 0 }
+      const income = Math.round(totals.income * 100) / 100
+      const expenses = Math.round(totals.expenses * 100) / 100
+      return {
+        monthKey,
+        income,
+        expenses,
+        balance: Math.round((income - expenses) * 100) / 100,
+      }
+    })
+
+    const totals = rows.reduce(
+      (acc, row) => ({
+        income: acc.income + row.income,
+        expenses: acc.expenses + row.expenses,
+        balance: acc.balance + row.balance,
+      }),
+      { income: 0, expenses: 0, balance: 0 },
+    )
+
+    res.json({
+      year,
+      rows,
+      totals: {
+        income: Math.round(totals.income * 100) / 100,
+        expenses: Math.round(totals.expenses * 100) / 100,
+        balance: Math.round(totals.balance * 100) / 100,
+      },
+    })
+  } catch (error) {
+    res.status(500).json({ error: String(error.message || error) })
+  }
+})
+
 app.get('/api/items', async (req, res) => {
   try {
     const settings = await getSettings()
