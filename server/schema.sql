@@ -1,6 +1,19 @@
-CREATE TABLE IF NOT EXISTS budget_months (
-  month_key CHAR(7) PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS users (
+  id CHAR(36) PRIMARY KEY,
+  username VARCHAR(32) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  currency ENUM('usd', 'php') NOT NULL DEFAULT 'usd',
+  theme VARCHAR(20) NOT NULL DEFAULT 'cozy',
+  active_month CHAR(7) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS budget_months (
+  id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36) NULL,
+  month_key CHAR(7) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_budget_months_user_month (user_id, month_key)
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -12,14 +25,16 @@ CREATE TABLE IF NOT EXISTS app_settings (
 
 CREATE TABLE IF NOT EXISTS categories (
   id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36) NULL,
   name VARCHAR(60) NOT NULL,
   kind ENUM('income', 'expense', 'savings') NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_categories_name_kind (name, kind)
+  UNIQUE KEY uq_categories_user_name_kind (user_id, name, kind)
 );
 
 CREATE TABLE IF NOT EXISTS savings_goals (
   id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36) NULL,
   name VARCHAR(80) NOT NULL,
   target_amount DECIMAL(12, 2) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -27,6 +42,7 @@ CREATE TABLE IF NOT EXISTS savings_goals (
 
 CREATE TABLE IF NOT EXISTS budget_items (
   id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36) NULL,
   name VARCHAR(80) NOT NULL,
   amount DECIMAL(12, 2) NOT NULL,
   kind ENUM('income', 'expense', 'savings') NOT NULL,

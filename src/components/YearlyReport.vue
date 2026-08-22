@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
-  apiUrl,
+  apiFetch,
   formatMoney,
   formatMonthLabel,
   type BudgetItem,
@@ -66,7 +66,7 @@ async function generate() {
   detailMonth.value = null
   detailItems.value = []
   try {
-    const res = await fetch(apiUrl(`/api/report/yearly?year=${year.value}`))
+    const res = await apiFetch(`/api/report/yearly?year=${year.value}`)
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       throw new Error(body.error || 'Could not generate report.')
@@ -106,8 +106,8 @@ async function toggleDetails(monthKey: string) {
   detailItems.value = []
 
   try {
-    const res = await fetch(
-      apiUrl(`/api/items?month=${encodeURIComponent(monthKey)}`),
+    const res = await apiFetch(
+      `/api/items?month=${encodeURIComponent(monthKey)}`,
     )
     if (!res.ok) throw new Error('Could not load month details.')
     detailItems.value = (await res.json()) as BudgetItem[]
@@ -124,7 +124,7 @@ async function toggleDetails(monthKey: string) {
   <section class="report" aria-label="Yearly summary report">
     <div class="report-header">
       <div>
-        <h2>Yearly summary</h2>
+        <h2>Yearly Summary Report</h2>
         <p class="hint">Generate a month-by-month table, then open any month for details.</p>
       </div>
     </div>

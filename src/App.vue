@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import AddItemForm from './components/AddItemForm.vue'
+import AuthScreen from './components/AuthScreen.vue'
 import GeneralSettings from './components/GeneralSettings.vue'
 import ItemList from './components/ItemList.vue'
 import MonthSwitcher from './components/MonthSwitcher.vue'
 import SummaryCards from './components/SummaryCards.vue'
 import YearlyReport from './components/YearlyReport.vue'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { useAuth } from './composables/useAuth'
 import { useBudget, type Period } from './composables/useBudget'
 
+const { user, ready, authError, authBusy, login, signup, logout } = useAuth()
 const {
   activePeriod,
   activeMonth,
@@ -39,7 +42,14 @@ const {
   setTheme,
   setActiveMonth,
   addMonth,
+  bootstrap,
+  resetBudget,
 } = useBudget()
+
+watch(user, (next) => {
+  if (next) void bootstrap()
+  else resetBudget()
+})
 
 const periods: { id: Period; label: string }[] = [
   { id: 'monthly', label: 'Monthly' },
@@ -61,10 +71,23 @@ const defaultReportYear = computed(() => {
 </script>
 
 <template>
+  <div class="shell" :class="{ centered: !user }">
   <div class="page">
+    <p v-if="!ready" class="status">Loading…</p>
+    <AuthScreen
+      v-else-if="!user"
+      :busy="authBusy"
+      :error="authError"
+      @login="login"
+      @signup="signup"
+    />
+    <template v-else>
     <header class="hero">
       <div class="hero-top">
         <p class="brand">Cozy Budget - Personal Planner</p>
+        <div class="hero-actions">
+          <span class="username">{{ user.username }}</span>
+          <button type="button" class="logout-btn" @click="logout">Log out</button>
         <GeneralSettings
           :currency="currency"
           :theme="theme"
@@ -80,6 +103,7 @@ const defaultReportYear = computed(() => {
           @add-goal="addGoal"
           @remove-goal="removeGoal"
         />
+        </div>
       </div>
       <p class="tagline">Track income, expenses, and savings goals.</p>
     </header>
@@ -154,16 +178,31 @@ const defaultReportYear = computed(() => {
       :default-year="defaultReportYear"
       :available-years="reportYears"
     />
+    </template>
+  </div>
   </div>
 </template>
 
 <style scoped>
+.shell.centered {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .page {
   position: relative;
   z-index: 1;
-  width: min(640px, 100%);
-  margin: 0 auto;
+  width: min(640px, calc(100% - 1.5rem));
+  margin: 1rem auto;
   padding: 2.5rem 1.25rem 3.5rem;
+  background: color-mix(in srgb, var(--paper) 14%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, white 60%, transparent);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .hero {
@@ -175,6 +214,32 @@ const defaultReportYear = computed(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.username {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.logout-btn {
+  border: 1.5px solid color-mix(in srgb, var(--mint) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 85%, white);
+  padding: 0.35rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
 }
 
 .brand {

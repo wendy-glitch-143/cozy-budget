@@ -1,4 +1,5 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import { clearSession, getToken } from './useAuth'
 
 export type Period = 'monthly' | 'h1' | 'h2'
 export type Kind = 'income' | 'expense' | 'savings'
@@ -86,8 +87,20 @@ export function apiUrl(path: string) {
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
 }
 
+export async function apiFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  const res = await fetch(apiUrl(path), { ...init, headers })
+  if (res.status === 401) clearSession()
+  return res
+}
+
 async function fetchSettings() {
-  const res = await fetch(apiUrl('/api/settings'))
+  const res = await apiFetch('/api/settings')
   if (!res.ok) throw new Error('Could not load settings.')
   const data = (await res.json()) as {
     currency: Currency
@@ -101,32 +114,32 @@ async function fetchSettings() {
 }
 
 async function fetchMonths() {
-  const res = await fetch(apiUrl('/api/months'))
+  const res = await apiFetch('/api/months')
   if (!res.ok) throw new Error('Could not load months.')
   months.value = (await res.json()) as string[]
 }
 
 async function fetchCategories() {
-  const res = await fetch(apiUrl('/api/categories'))
+  const res = await apiFetch('/api/categories')
   if (!res.ok) throw new Error('Could not load categories.')
   categories.value = (await res.json()) as Category[]
 }
 
 async function fetchGoals() {
-  const res = await fetch(apiUrl('/api/goals'))
+  const res = await apiFetch('/api/goals')
   if (!res.ok) throw new Error('Could not load goals.')
   goals.value = (await res.json()) as SavingsGoal[]
 }
 
 async function fetchItems() {
-  const res = await fetch(
-    apiUrl(`/api/items?month=${encodeURIComponent(activeMonth.value)}`),
+  const res = await apiFetch(
+    `/api/items?month=${encodeURIComponent(activeMonth.value)}`,
   )
   if (!res.ok) throw new Error('Could not load budget items.')
   items.value = (await res.json()) as BudgetItem[]
 }
 
-async function bootstrap() {
+export async function bootstrap() {
   loading.value = true
   error.value = ''
   try {
@@ -140,10 +153,21 @@ async function bootstrap() {
   }
 }
 
+export function resetBudget() {
+  items.value = []
+  categories.value = []
+  goals.value = []
+  months.value = []
+  currency.value = 'usd'
+  theme.value = 'cozy'
+  applyTheme('cozy')
+  activeMonth.value = currentMonthKey()
+  activePeriod.value = 'monthly'
+  loading.value = false
+  error.value = ''
+}
+
 export function useBudget() {
-  onMounted(() => {
-    void bootstrap()
-  })
 
   const filteredItems = computed(() =>
     items.value.filter((item) => item.period === activePeriod.value),
@@ -194,9 +218,8 @@ export function useBudget() {
     theme?: Theme
     activeMonth?: string
   }) {
-    const res = await fetch(apiUrl('/api/settings'), {
+    const res = await apiFetch('/api/settings', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         currency: patch.currency ?? currency.value,
         theme: patch.theme ?? theme.value,
@@ -266,9 +289,8 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch(apiUrl('/api/months'), {
+      const res = await apiFetch('/api/months', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ monthKey }),
       })
       if (!res.ok) {
@@ -293,9 +315,8 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch(apiUrl('/api/categories'), {
+      const res = await apiFetch('/api/categories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, kind }),
       })
       if (!res.ok) {
@@ -326,7 +347,7 @@ export function useBudget() {
         : item,
     )
     try {
-      const res = await fetch(apiUrl(`/api/categories/${id}`), { method: 'DELETE' })
+      const res = await apiFetch(`/api/categories/${id}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove category.')
       }
@@ -346,9 +367,8 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch(apiUrl('/api/goals'), {
+      const res = await apiFetch('/api/goals', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmed,
           targetAmount: Math.round(targetAmount * 100) / 100,
@@ -377,7 +397,7 @@ export function useBudget() {
       item.goalId === id ? { ...item, goalId: null, goalName: null } : item,
     )
     try {
-      const res = await fetch(apiUrl(`/api/goals/${id}`), { method: 'DELETE' })
+      const res = await apiFetch(`/api/goals/${id}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove goal.')
       }
@@ -403,9 +423,8 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch(apiUrl('/api/items'), {
+      const res = await apiFetch('/api/items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmed,
           amount: Math.round(amount * 100) / 100,
@@ -439,7 +458,7 @@ export function useBudget() {
     const removed = items.value.find((item) => item.id === id)
     items.value = items.value.filter((item) => item.id !== id)
     try {
-      const res = await fetch(apiUrl(`/api/items/${id}`), { method: 'DELETE' })
+      const res = await apiFetch(`/api/items/${id}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove item.')
       }
@@ -496,6 +515,8 @@ export function useBudget() {
     setTheme,
     setActiveMonth,
     addMonth,
+    bootstrap,
+    resetBudget,
     refresh: bootstrap,
   }
 }
