@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "start": "node server/index.mjs"
   "scripts": {
     "dev": "vite",
     "dev:server": "node --env-file=.env server/index.mjs",

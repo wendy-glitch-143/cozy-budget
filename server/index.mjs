@@ -29,6 +29,9 @@ const pool = mysql.createPool({
   database: process.env.MYSQL_DATABASE || 'personal_budget',
   waitForConnections: true,
   connectionLimit: 10,
+  ssl: process.env.MYSQL_SSL === 'false'
+  ? undefined
+  : { minVersion: 'TLSv1.2' },
 })
 
 function currentMonthKey() {
