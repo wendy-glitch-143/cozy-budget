@@ -5,6 +5,7 @@ import GeneralSettings from './components/GeneralSettings.vue'
 import ItemList from './components/ItemList.vue'
 import MonthSwitcher from './components/MonthSwitcher.vue'
 import SummaryCards from './components/SummaryCards.vue'
+import SummaryChart from './components/SummaryChart.vue'
 import YearlyReport from './components/YearlyReport.vue'
 import { computed, watch } from 'vue'
 import { useAuth } from './composables/useAuth'
@@ -115,6 +116,13 @@ const defaultReportYear = computed(() => {
       :months="months"
       :active-month="activeMonth"
       @update:month="setActiveMonth"
+    />
+
+    <SummaryChart
+      :income="totalIncome"
+      :expenses="totalExpenses"
+      :savings="totalSavings"
+      :currency="currency"
     />
 
     <nav class="period-tabs" aria-label="Budget period">
