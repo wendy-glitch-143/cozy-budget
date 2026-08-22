@@ -29,8 +29,9 @@ defineEmits<{
 <style scoped>
 .month-switcher {
   display: flex;
-  flex-direction: column;
+  flex-direction:column;
   gap: 0.4rem;
+  justify-content: center;
   margin: 1.35rem 0 1.1rem;
 }
 

@@ -95,12 +95,14 @@ function slicePath(start: number, end: number) {
   margin: 0;
   font-family: var(--font-body);
   font-size: 0.92rem;
+  text-align: center;
   color: var(--ink-soft);
 }
 
 .pie-wrap {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 1.25rem;
 }
 
@@ -165,10 +167,4 @@ function slicePath(start: number, end: number) {
   color: var(--ink);
 }
 
-@media (max-width: 420px) {
-  .pie-wrap {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
 </style>

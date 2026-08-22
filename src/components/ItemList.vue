@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { formatMoney, type BudgetItem, type Currency } from '../composables/useBudget'
 
 defineProps<{
@@ -12,35 +13,48 @@ defineProps<{
 defineEmits<{
   remove: [id: string]
 }>()
+
+const open = ref(true)
 </script>
 
 <template>
   <section class="item-section" :class="kind">
-    <h2>{{ title }}</h2>
+    <button
+      type="button"
+      class="section-toggle"
+      :aria-expanded="open"
+      @click="open = !open"
+    >
+      <h2>{{ title }}</h2>
+      <span v-if="items.length" class="count">{{ items.length }}</span>
+      <span class="chevron" aria-hidden="true">{{ open ? '▾' : '▸' }}</span>
+    </button>
 
-    <TransitionGroup name="list" tag="ul" class="item-list" v-if="items.length">
-      <li v-for="item in items" :key="item.id" class="item-row">
-        <div class="item-copy">
-          <span class="item-name">{{ item.name }}</span>
-          <span v-if="item.categoryName || item.goalName" class="item-category">
-            <template v-if="item.categoryName">{{ item.categoryName }}</template>
-            <template v-if="item.categoryName && item.goalName"> · </template>
-            <template v-if="item.goalName">Goal: {{ item.goalName }}</template>
-          </span>
-        </div>
-        <span class="item-amount">{{ formatMoney(item.amount, currency) }}</span>
-        <button
-          type="button"
-          class="remove-btn"
-          :aria-label="`Remove ${item.name}`"
-          @click="$emit('remove', item.id)"
-        >
-          ×
-        </button>
-      </li>
-    </TransitionGroup>
+    <div v-show="open">
+      <TransitionGroup name="list" tag="ul" class="item-list" v-if="items.length">
+        <li v-for="item in items" :key="item.id" class="item-row">
+          <div class="item-copy">
+            <span class="item-name">{{ item.name }}</span>
+            <span v-if="item.categoryName || item.goalName" class="item-category">
+              <template v-if="item.categoryName">{{ item.categoryName }}</template>
+              <template v-if="item.categoryName && item.goalName"> · </template>
+              <template v-if="item.goalName">Goal: {{ item.goalName }}</template>
+            </span>
+          </div>
+          <span class="item-amount">{{ formatMoney(item.amount, currency) }}</span>
+          <button
+            type="button"
+            class="remove-btn"
+            :aria-label="`Remove ${item.name}`"
+            @click="$emit('remove', item.id)"
+          >
+            ×
+          </button>
+        </li>
+      </TransitionGroup>
 
-    <p v-else class="empty">{{ emptyMessage }}</p>
+      <p v-else class="empty">{{ emptyMessage }}</p>
+    </div>
   </section>
 </template>
 
@@ -49,12 +63,38 @@ defineEmits<{
   margin-bottom: 1.75rem;
 }
 
-h2 {
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
   margin: 0 0 0.85rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+h2 {
+  margin: 0;
+  flex: 1;
   font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--ink);
+}
+
+.count {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.chevron {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
 }
 
 .income h2 {
