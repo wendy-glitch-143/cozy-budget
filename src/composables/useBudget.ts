@@ -79,8 +79,15 @@ export function formatMoney(amount: number, selected: Currency = 'usd') {
   })}`
 }
 
+/** Empty locally (Vite proxy); set VITE_API_BASE on Vercel to the Render API URL. */
+const API_BASE = String(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
+
+export function apiUrl(path: string) {
+  return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 async function fetchSettings() {
-  const res = await fetch('/api/settings')
+  const res = await fetch(apiUrl('/api/settings'))
   if (!res.ok) throw new Error('Could not load settings.')
   const data = (await res.json()) as {
     currency: Currency
@@ -94,25 +101,27 @@ async function fetchSettings() {
 }
 
 async function fetchMonths() {
-  const res = await fetch('/api/months')
+  const res = await fetch(apiUrl('/api/months'))
   if (!res.ok) throw new Error('Could not load months.')
   months.value = (await res.json()) as string[]
 }
 
 async function fetchCategories() {
-  const res = await fetch('/api/categories')
+  const res = await fetch(apiUrl('/api/categories'))
   if (!res.ok) throw new Error('Could not load categories.')
   categories.value = (await res.json()) as Category[]
 }
 
 async function fetchGoals() {
-  const res = await fetch('/api/goals')
+  const res = await fetch(apiUrl('/api/goals'))
   if (!res.ok) throw new Error('Could not load goals.')
   goals.value = (await res.json()) as SavingsGoal[]
 }
 
 async function fetchItems() {
-  const res = await fetch(`/api/items?month=${encodeURIComponent(activeMonth.value)}`)
+  const res = await fetch(
+    apiUrl(`/api/items?month=${encodeURIComponent(activeMonth.value)}`),
+  )
   if (!res.ok) throw new Error('Could not load budget items.')
   items.value = (await res.json()) as BudgetItem[]
 }
@@ -185,7 +194,7 @@ export function useBudget() {
     theme?: Theme
     activeMonth?: string
   }) {
-    const res = await fetch('/api/settings', {
+    const res = await fetch(apiUrl('/api/settings'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -257,7 +266,7 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch('/api/months', {
+      const res = await fetch(apiUrl('/api/months'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ monthKey }),
@@ -284,7 +293,7 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch('/api/categories', {
+      const res = await fetch(apiUrl('/api/categories'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, kind }),
@@ -317,7 +326,7 @@ export function useBudget() {
         : item,
     )
     try {
-      const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' })
+      const res = await fetch(apiUrl(`/api/categories/${id}`), { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove category.')
       }
@@ -337,7 +346,7 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch('/api/goals', {
+      const res = await fetch(apiUrl('/api/goals'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -368,7 +377,7 @@ export function useBudget() {
       item.goalId === id ? { ...item, goalId: null, goalName: null } : item,
     )
     try {
-      const res = await fetch(`/api/goals/${id}`, { method: 'DELETE' })
+      const res = await fetch(apiUrl(`/api/goals/${id}`), { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove goal.')
       }
@@ -394,7 +403,7 @@ export function useBudget() {
     saving.value = true
     error.value = ''
     try {
-      const res = await fetch('/api/items', {
+      const res = await fetch(apiUrl('/api/items'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -430,7 +439,7 @@ export function useBudget() {
     const removed = items.value.find((item) => item.id === id)
     items.value = items.value.filter((item) => item.id !== id)
     try {
-      const res = await fetch(`/api/items/${id}`, { method: 'DELETE' })
+      const res = await fetch(apiUrl(`/api/items/${id}`), { method: 'DELETE' })
       if (!res.ok && res.status !== 404) {
         throw new Error('Could not remove item.')
       }

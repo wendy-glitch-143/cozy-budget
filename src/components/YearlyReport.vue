@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
+  apiUrl,
   formatMoney,
   formatMonthLabel,
   type BudgetItem,
@@ -65,7 +66,7 @@ async function generate() {
   detailMonth.value = null
   detailItems.value = []
   try {
-    const res = await fetch(`/api/report/yearly?year=${year.value}`)
+    const res = await fetch(apiUrl(`/api/report/yearly?year=${year.value}`))
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       throw new Error(body.error || 'Could not generate report.')
@@ -105,7 +106,9 @@ async function toggleDetails(monthKey: string) {
   detailItems.value = []
 
   try {
-    const res = await fetch(`/api/items?month=${encodeURIComponent(monthKey)}`)
+    const res = await fetch(
+      apiUrl(`/api/items?month=${encodeURIComponent(monthKey)}`),
+    )
     if (!res.ok) throw new Error('Could not load month details.')
     detailItems.value = (await res.json()) as BudgetItem[]
   } catch (err) {
